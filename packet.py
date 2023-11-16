@@ -69,10 +69,8 @@ class Packet:
     def gen_pkt_size(self, pkt_size, pkt_size_type):
         # If pkt_size was not set
         if pkt_size is None:
-            print(f"pkt_size_type {pkt_size_type}")
             if pkt_size_type == 'random':
                 pkt_size_type = random.choice(['small', 'medium', 'long'])
-            print(f"pkt_size_type {pkt_size_type}")
             # Randomize pkt_size
             if pkt_size_type == 'one_word':
                 pkt_size = random.randint(1,self.word_size)            
