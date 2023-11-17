@@ -19,7 +19,7 @@ class Packet:
         self.format_width = int(self.word_size)*2
 
     def compare(self, comp_pkt):
-        if len(self.data) != len(comp_pkt.data):
+        if self.pkt_size != comp_pkt.pkt_size:
             print("[Warning] Packets length are not matched")
             return 1
         if self.data != comp_pkt.data:
@@ -67,7 +67,6 @@ class Packet:
                 self.pkt_size = random.randint(self.word_size*50, self.word_size*150)
             else:
                 raise ValueError("[ERROR] Invalid pkt_size_type: " + str(pkt_size_type))
-        print(f"gen_pkt_size : {self.pkt_size}")
             
             
     #---------------------------------
@@ -94,7 +93,6 @@ class Packet:
     def gen_data(self, pattern):
         # Generate data using pattern
         pkt_size_in_words = math.ceil(self.pkt_size / self.word_size)
-        print(f"pkt_size_in_words = {pkt_size_in_words}")
         if(pattern == 'increment'):
             for word_indx in range(pkt_size_in_words):
                 word = word_indx % 8*self.word_size
