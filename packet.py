@@ -1,9 +1,10 @@
-import random        
+import random
+import math
 class Packet:
 
     dbg_words_in_line = 8
     dbg_fill = '0'
-    dbg_width = 5
+    dbg_width = 3
     
     # Class members:
     #   self.data
@@ -13,6 +14,8 @@ class Packet:
     def __init__(self, word_size = 1):
         self.word_size    = word_size
         self.data         = []
+        self.pkt_size     = None
+        self.delay        = None
         self.format_width = int(self.word_size)*2
 
     def compare(self, comp_pkt):
@@ -31,13 +34,46 @@ class Packet:
     def check_pkt(self):
         if len(self.data) == 0:
             assert False, "[ERROR] Packet is not generated."
+            
+    #---------------------------------
+    # Generate method.
+    #---------------------------------
+
+    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short'):
+        # Generate packet and delay members.
+        self.gen_pkt_size(pkt_size, pkt_size_type)
+        self.gen_delay(delay, delay_type)
+        self.gen_data(pattern)
+        
+    #---------------------------------
+    # Generate pkt_size.
+    #---------------------------------
     
-    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay_type = 'short', delay = None):
-        # If packet size is not specified, then
-        # use random value
-        pkt_size_in_words = self.gen_pkt_size(pkt_size, pkt_size_type)
-        # If delay is not set in cycles
-        # then use range of delay
+    def gen_pkt_size(self, pkt_size, pkt_size_type):
+        # If pkt_size was not set
+        if pkt_size is not None:
+            self.pkt_size = pkt_size
+        else:
+            if pkt_size_type == 'random':
+                pkt_size_type = random.choice(['small', 'medium', 'long'])
+                # Randomize pkt_size
+            if pkt_size_type == 'one_word':
+                self.pkt_size = random.randint(1,self.word_size)            
+            elif pkt_size_type == 'small':
+                self.pkt_size = random.randint(self.word_size+1, self.word_size*5)
+            elif pkt_size_type == 'medium':
+                self.pkt_size = random.randint(self.word_size*5, self.word_size*50)
+            elif pkt_size_type == 'long':
+                self.pkt_size = random.randint(self.word_size*50, self.word_size*150)
+            else:
+                raise ValueError("[ERROR] Invalid pkt_size_type: " + str(pkt_size_type))
+        print(f"gen_pkt_size : {self.pkt_size}")
+            
+            
+    #---------------------------------
+    # Generate delay
+    #---------------------------------
+    def gen_delay(self, delay, delay_type):
         if delay is not None:
             self.delay = delay
         else:
@@ -46,12 +82,19 @@ class Packet:
             elif delay_type == 'short':
                 self.delay = random.randint(1,5)
             elif delay_type == 'medium':
-                self.delay = random.randint(5,10)
+                self.delay = random.randint(5,50)
             elif delay_type == 'long':
-                self.delay = random.randint(11,50)
+                self.delay = random.randint(50,250)
             else:
-                self.delay = random.randint(51,100)
+                self.delay = random.randint(500, 1000)        
+
+    #---------------------------------
+    # Generate data
+    #---------------------------------
+    def gen_data(self, pattern):
         # Generate data using pattern
+        pkt_size_in_words = math.ceil(self.pkt_size / self.word_size)
+        print(f"pkt_size_in_words = {pkt_size_in_words}")
         if(pattern == 'increment'):
             for word_indx in range(pkt_size_in_words):
                 word = word_indx % 8*self.word_size
@@ -63,36 +106,20 @@ class Packet:
                 self.data.append(word)
 
     #---------------------------------
-    # Generate pkt_size.
+    # Print packet
     #---------------------------------
-    
-    def gen_pkt_size(self, pkt_size, pkt_size_type):
-        # If pkt_size was not set
-        if pkt_size is None:
-            if pkt_size_type == 'random':
-                pkt_size_type = random.choice(['small', 'medium', 'long'])
-            # Randomize pkt_size
-            if pkt_size_type == 'one_word':
-                pkt_size = random.randint(1,self.word_size)            
-            elif pkt_size_type == 'small':
-                pkt_size = random.randint(self.word_size+1, self.word_size*5)
-            elif pkt_size_type == 'medium':
-                pkt_size = random.randint(self.word_size*5, self.word_size*50)
-            elif pkt_size_type == 'long':
-                pkt_size = random.randint(self.word_size*50, self.word_size*150)
-            else:
-                raise ValueError("[ERROR] Invalid pkt_size_type: " + str(pkt_size_type))
-        return pkt_size
-
-    def print_pkt(self):
+    def print_pkt(self, source = ''):
         word_indx = 0
         dbg = ''
+        if source:            
+            dbg = dbg + source + '\n'
         dbg = dbg + f"\t WORD_SIZE: {self.word_size}\n"
-        dbg = dbg + f"\t PKT_SIZE : {len(self.data)}\n\n"
+        dbg = dbg + f"\t PKT_SIZE : {self.pkt_size}\n"
+        dbg = dbg + f"\t DATA     : \n"
         for word_indx in range (len(self.data)):
             if word_indx % Packet.dbg_words_in_line == 0:
                 dbg = dbg + "\n"
-                dbg = dbg + f"0x{word_indx:{Packet.dbg_fill}{Packet.dbg_width}x}: "
+                dbg = dbg + f"\t\t0x{word_indx:{Packet.dbg_fill}{Packet.dbg_width}x}: "
             dbg = dbg + f" 0x{self.data[word_indx]:{Packet.dbg_fill}{self.format_width}x} "
             word_indx += 1
 
