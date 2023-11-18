@@ -91,8 +91,9 @@ class Packet:
     # Generate data
     #---------------------------------
     def gen_data(self, pattern):
-        # Generate data using pattern
+        # Calculates words number and valid bytes in the last cycle of the transaction
         pkt_size_in_words = math.ceil(self.pkt_size / self.word_size)
+        last_word_bytes_valid = self.pkt_size % self.word_size
         if(pattern == 'increment'):
             for word_indx in range(pkt_size_in_words):
                 word = word_indx % 8*self.word_size
@@ -100,7 +101,11 @@ class Packet:
         else:
             print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
             for word_indx in range(pkt_size_in_words):
-                word = random.randint(0, 2**(8*self.word_size))
+                # Check if bytes number is not word aligned in the last cycle:
+                if word_indx == pkt_size_in_words-1 and last_word_bytes_valid:
+                    word = random.randint(0, 2**(8*last_word_bytes_valid))
+                else:
+                    word = random.randint(0, 2**(8*self.word_size))
                 self.data.append(word)
 
     #---------------------------------
