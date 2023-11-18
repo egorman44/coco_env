@@ -20,3 +20,17 @@ class comp:
                 assert False , f"[TEST_FALIED] Packets are not equal"
             else:
                 print(f"[TEST_PASSED] Packet are equal. Congradulations!")
+
+class predictor:
+
+    def __init__(self, name='comparator'):
+        self.name = name
+        self.port_in = []
+        self.port_out = []
+        
+    def predict(self):
+        '''Override the method to convert one type of packet 
+        to another'''
+        for pkt in port_in:
+            port_out.append(pkt)
+        
