@@ -2,9 +2,9 @@
 # Packet comparator.
 #----------------------------------------------
 
-class comp:
+class Comparator:
 
-    def __init__(self, name='comparator'):
+    def __init__(self, name):
         self.name = name
         self.port_prd = []
         self.port_out = []
@@ -21,16 +21,16 @@ class comp:
             else:
                 print(f"[TEST_PASSED] Packet are equal. Congradulations!")
 
-class predictor:
+class Predictor:
 
-    def __init__(self, name='comparator'):
+    def __init__(self, name, port_prd):
         self.name = name
         self.port_in = []
-        self.port_out = []
+        self.port_prd = port_prd
         
     def predict(self):
         '''Override the method to convert one type of packet 
         to another'''
-        for pkt in port_in:
-            port_out.append(pkt)
+        for pkt in self.port_in:
+            self.port_prd.append(pkt)
         
