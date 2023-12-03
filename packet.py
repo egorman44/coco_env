@@ -139,8 +139,11 @@ class Packet:
     #---------------------------------
 
     def corrupt(self, words_num = 1):
-        corrupt_words = random.sample(range(0,2 ** self.word_size), words_num)
-        print(corrupt_words)
+        corrupt_words = random.sample(range(0,len(self.data)), words_num)
+        print(f"corrupt_words {corrupt_words}")
+        for word in corrupt_words:
+            bit_position = random.randint(0, (self.word_size*8)-1)
+            self.data[word] = self.data[word] ^ (1 << bit_position)
         
         
                 
