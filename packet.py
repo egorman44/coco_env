@@ -109,6 +109,42 @@ class Packet:
                 self.data.append(word)
 
     #---------------------------------
+    # Convert data into the byte list
+    #---------------------------------
+    
+    def get_byte_list(self):
+        byte_list = []
+        word_cntr = 0
+        byte_cntr = 0
+        for i in range (self.pkt_size):
+            byte_cntr = i % self.word_size
+            byte = (self.data[word_cntr] >> (byte_cntr * 8)) & 0xFF
+            byte_list.append(byte)
+            if(byte_cntr) == self.word_size - 1:
+                word_cntr += 1
+        return byte_list
+
+    def write_byte_list(self, byte_list):        
+        self.data = []
+        self.pkt_size = len(byte_list)
+        word = 0
+        for i in range(len(byte_list)):
+            word = word | (byte_list[i] << (i % self.word_size)*8)
+            if (i % self.word_size == self.word_size-1) or (i == len(byte_list)-1):
+                self.data.append(word)
+                word = 0
+
+    #---------------------------------
+    # Corrupt data list
+    #---------------------------------
+
+    def corrupt(self, words_num = 1):
+        corrupt_words = random.sample(range(0,2 ** self.word_size), words_num)
+        print(corrupt_words)
+        
+        
+                
+    #---------------------------------
     # Print packet
     #---------------------------------
     def print_pkt(self, source = ''):
