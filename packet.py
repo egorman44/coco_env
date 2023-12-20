@@ -1,3 +1,5 @@
+# TODO: Rewrite packet. data should be a byte list, not a word list.
+
 import random
 import math
 class Packet:
@@ -18,6 +20,9 @@ class Packet:
         self.delay        = None
         self.format_width = int(self.word_size)*2
 
+    def copy(self, ref_pkt):
+        self.data = ref_pkt.data.copy()
+        
     def compare(self, comp_pkt):
         if self.pkt_size != comp_pkt.pkt_size:
             print("[Warning] Packets length are not matched")
@@ -39,11 +44,12 @@ class Packet:
     # Generate method.
     #---------------------------------
 
-    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short'):
+    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short', ref_pkt = None):
         # Generate packet and delay members.
-        self.gen_pkt_size(pkt_size, pkt_size_type)
+        if ref_pkt is None:
+            self.gen_pkt_size(pkt_size, pkt_size_type)        
         self.gen_delay(delay, delay_type)
-        self.gen_data(pattern)
+        self.gen_data(pattern, ref_pkt)
         
     #---------------------------------
     # Generate pkt_size.
@@ -90,23 +96,27 @@ class Packet:
     #---------------------------------
     # Generate data
     #---------------------------------
-    def gen_data(self, pattern):
-        # Calculates words number and valid bytes in the last cycle of the transaction
-        pkt_size_in_words = math.ceil(self.pkt_size / self.word_size)
-        last_word_bytes_valid = self.pkt_size % self.word_size
-        if(pattern == 'increment'):
-            for word_indx in range(pkt_size_in_words):
-                word = word_indx % 8*self.word_size
-                self.data.append(word)
+    def gen_data(self, pattern, ref_pkt = None):        
+        if ref_pkt is not None:
+            self.data = ref_pkt.data.copy()
+            self.pkt_size = ref_pkt.pkt_size
         else:
-            print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
-            for word_indx in range(pkt_size_in_words):
-                # Check if bytes number is not word aligned in the last cycle:
-                if word_indx == pkt_size_in_words-1 and last_word_bytes_valid:
-                    word = random.randint(0, 2**(8*last_word_bytes_valid))
-                else:
-                    word = random.randint(0, 2**(8*self.word_size))
-                self.data.append(word)
+            # Calculates words number and valid bytes in the last cycle of the transaction
+            pkt_size_in_words = math.ceil(self.pkt_size / self.word_size)
+            last_word_bytes_valid = self.pkt_size % self.word_size
+            if(pattern == 'increment'):
+                for word_indx in range(pkt_size_in_words):
+                    word = word_indx % 8*self.word_size
+                    self.data.append(word)
+            else:
+                print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
+                for word_indx in range(pkt_size_in_words):
+                    # Check if bytes number is not word aligned in the last cycle:
+                    if word_indx == pkt_size_in_words-1 and last_word_bytes_valid:
+                        word = random.randint(0, 2**(8*last_word_bytes_valid))
+                    else:
+                        word = random.randint(0, 2**(8*self.word_size))
+                    self.data.append(word)
 
     #---------------------------------
     # Convert data into the byte list
@@ -128,9 +138,11 @@ class Packet:
         self.data = []
         self.pkt_size = len(byte_list)
         word = 0
+        print(f"byte_list = {byte_list}")
         for i in range(len(byte_list)):
             word = word | (byte_list[i] << (i % self.word_size)*8)
             if (i % self.word_size == self.word_size-1) or (i == len(byte_list)-1):
+                print(f"word = {word:x}")
                 self.data.append(word)
                 word = 0
 
@@ -138,7 +150,7 @@ class Packet:
     # Corrupt data list
     #---------------------------------
 
-    def corrupt(self, words_num = 1):
+    def corrupt_pkt(self, words_num = 1):
         corrupt_words = random.sample(range(0,len(self.data)), words_num)
         print(f"corrupt_words {corrupt_words}")
         for word in corrupt_words:
@@ -161,7 +173,7 @@ class Packet:
         for word_indx in range (len(self.data)):
             if word_indx % Packet.dbg_words_in_line == 0:
                 dbg = dbg + "\n"
-                dbg = dbg + f"\t\t0x{word_indx:{Packet.dbg_fill}{Packet.dbg_width}x}: "
+                dbg = dbg + f"\t\t{word_indx:{Packet.dbg_fill}{Packet.dbg_width}d}: "
             dbg = dbg + f" 0x{self.data[word_indx]:{Packet.dbg_fill}{self.format_width}x} "
             word_indx += 1
 
