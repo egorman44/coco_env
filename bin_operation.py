@@ -5,6 +5,12 @@ def countones(n):
         n = n >> 1
     return count
 
+def check_pos(in_vect, pos):
+    if((in_vect >> pos) & 1):
+        return True
+    else:
+        return False
+
 def get_byte_list(word_list, word_width, bytes_num):
     byte_list = []
     word_indx = 0
