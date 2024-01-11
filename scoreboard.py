@@ -21,7 +21,7 @@ class Comparator:
                 self.port_prd[indx].print_pkt()
                 assert False , f"[TEST_FALIED] Packets are not equal"
             else:
-                print(f"[TEST_PASSED] Packet are equal. Congradulations!")
+                print(f"\n[TEST_PASSED] Packets are equal. Congradulations!\n")
 
 class Predictor:
 

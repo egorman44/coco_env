@@ -13,7 +13,8 @@ class Packet:
     #   self.word_size
     #   self.delay
     
-    def __init__(self, word_size = 1):
+    def __init__(self, name, word_size = 1):
+        self.name         = name
         self.word_size    = word_size
         self.data         = []
         self.pkt_size     = None
@@ -23,19 +24,21 @@ class Packet:
     def copy(self, ref_pkt):
         self.data = ref_pkt.data.copy()
         
-    def compare(self, comp_pkt):
+    def compare(self, comp_pkt, verbose=0):
         if self.pkt_size != comp_pkt.pkt_size:
             print("[Warning] Packets length are not matched")
             return 1
         if self.data != comp_pkt.data:
             for indx in range(0,len(self.data)):
                 if(self.data[indx] != comp_pkt.data[indx]):
-                    print(f"[Warning] Words pkt0[{indx}] != pkt1[{indx}] ")
-                    print(f" \t pkt0[{indx}] = 0x{self.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
-                    print(f" \t pkt1[{indx}] = 0x{comp_pkt.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
-                    break
+                    print(f"[Warning] Words {self.name}[{indx}] != {comp_pkt.name}[{indx}] ")
+                    print(f" \t {self.name}[{indx}] = 0x{self.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
+                    print(f" \t {comp_pkt.name}[{indx}] = 0x{comp_pkt.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
             return 1
-                    
+        print()
+        if(verbose):
+            print(f"[Info] Packets {self.name} {comp_pkt.name} are equal")
+        
     def check_pkt(self):
         if len(self.data) == 0:
             assert False, "[ERROR] Packet is not generated."
@@ -137,12 +140,10 @@ class Packet:
     def write_byte_list(self, byte_list):        
         self.data = []
         self.pkt_size = len(byte_list)
-        word = 0
-        print(f"byte_list = {byte_list}")
+        word = 0        
         for i in range(len(byte_list)):
             word = word | (byte_list[i] << (i % self.word_size)*8)
-            if (i % self.word_size == self.word_size-1) or (i == len(byte_list)-1):
-                print(f"word = {word:x}")
+            if (i % self.word_size == self.word_size-1) or (i == len(byte_list)-1):                
                 self.data.append(word)
                 word = 0
 
@@ -166,7 +167,8 @@ class Packet:
         word_indx = 0
         dbg = ''
         if source:            
-            dbg = dbg + source + '\n'
+            dbg = source + '\n'
+        dbg = dbg + f"\t PKT_NAME : {self.name} \n"
         dbg = dbg + f"\t WORD_SIZE: {self.word_size}\n"
         dbg = dbg + f"\t PKT_SIZE : {self.pkt_size}\n"
         dbg = dbg + f"\t DATA     : \n"
