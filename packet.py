@@ -4,7 +4,7 @@ import random
 import math
 class Packet:
 
-    dbg_words_in_line = 8
+    dbg_wordsыру_in_line = 8
     dbg_fill = '0'
     dbg_width = 3
     
@@ -147,6 +147,14 @@ class Packet:
                 self.data.append(word)
                 word = 0
 
+    def write_number(self, val, width_in_bits):
+        byte_list = []
+        self.data = []
+        self.pkt_size = math.ceil(width_in_bits/8)
+        for i in range(self.pkt_size):
+            byte_list.append((val >> i*8) & 0xFF)
+        self.write_byte_list(byte_list)        
+
     #---------------------------------
     # Corrupt data list
     #---------------------------------
@@ -171,6 +179,8 @@ class Packet:
         dbg = dbg + f"\t PKT_NAME : {self.name} \n"
         dbg = dbg + f"\t WORD_SIZE: {self.word_size}\n"
         dbg = dbg + f"\t PKT_SIZE : {self.pkt_size}\n"
+        if self.delay is not None:
+            dbg = dbg + f"\t DELAY    : {self.delay}\n"
         dbg = dbg + f"\t DATA     : \n"
         for word_indx in range (len(self.data)):
             if word_indx % Packet.dbg_words_in_line == 0:
