@@ -16,12 +16,11 @@ class Comparator:
         if len(self.port_prd) != len(self.port_out):
             assert False , f"[TEST_FALIED] Number of transactions are not equal. \n\t len(port_prd) = {len(self.port_prd)} \n\t len(port_out) = {len(self.port_out)}"
         for indx in range (0,len(self.port_prd)):
-            if(self.port_out[indx].compare(self.port_prd[indx])):
+            if(self.port_out[indx].compare(self.port_prd[indx],1)):
                 self.port_out[indx].print_pkt()
                 self.port_prd[indx].print_pkt()
-                assert False , f"[TEST_FALIED] Packets are not equal"
-            else:
-                print(f"\n[TEST_PASSED] Packets are equal. Congradulations!\n")
+                assert False , f"[TEST_FALIED] Packets are not equal"            
+        print(f"\n[TEST_PASSED] Packets are equal. Congradulations!\n")
 
 class Predictor:
 
