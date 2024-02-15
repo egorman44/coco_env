@@ -1,3 +1,8 @@
+# TODO: how to handle interface width:
+# width < 8bit
+# 8bit < width < 16bit ?
+
+
 import random
 import math
 class Packet:
@@ -10,15 +15,17 @@ class Packet:
     #   self.data
     #   self.delay
     
-    def __init__(self, name, format_width=1):
+    def __init__(self, name, format_width=1, width=8):
         self.name         = name
         self.data         = []
         self.pkt_size     = None
         self.delay        = None
         self.format_width = format_width
+        self.width        = width
 
     def copy(self, ref_pkt):
         self.data = ref_pkt.data.copy()
+        self.pkt_size = len(ref_pkt.data)
         
     def compare(self, comp_pkt, verbose=0):
         if self.pkt_size != comp_pkt.pkt_size:
@@ -38,17 +45,23 @@ class Packet:
     def check_pkt(self):
         if len(self.data) == 0:
             assert False, "[ERROR] Packet is not generated."
-            
+
+    #---------------------------------
+    # Generate based on ref_pkt.
+    #---------------------------------
+    def generate_ref_pkt(self, ref_pkt, delay = None, delay_type = 'short'):
+        self.gen_delay(delay, delay_type)
+        self.copy(ref_pkt)
+        
     #---------------------------------
     # Generate method.
     #---------------------------------
 
-    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short', ref_pkt = None):
+    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short'):
         # Generate packet and delay members.
-        if ref_pkt is None:
-            self.gen_pkt_size(pkt_size, pkt_size_type)        
+        self.gen_pkt_size(pkt_size, pkt_size_type)        
         self.gen_delay(delay, delay_type)
-        self.gen_data(pattern, ref_pkt)
+        self.gen_data(pattern)
         
     #---------------------------------
     # Generate pkt_size.
@@ -72,8 +85,7 @@ class Packet:
                 self.pkt_size = random.randint(500, 1500)
             else:
                 raise ValueError("[ERROR] Invalid pkt_size_type: " + str(pkt_size_type))
-            
-            
+    
     #---------------------------------
     # Generate delay
     #---------------------------------
@@ -96,21 +108,17 @@ class Packet:
     # Generate data
     #---------------------------------
     def gen_data(self, pattern, ref_pkt = None):        
-        if ref_pkt is not None:
-            self.data = ref_pkt.data.copy()
-            self.pkt_size = ref_pkt.pkt_size
+        # Calculates words number and valid bytes in the last cycle of the transaction
+        pkt_size_in_words = math.ceil(self.pkt_size / self.format_width)
+        last_word_bytes_valid = self.pkt_size % self.format_width
+        if(pattern == 'increment'):
+            for word_indx in range(pkt_size_in_words):
+                word = word_indx % 8*self.format_width
+                self.data.append(word)
         else:
-            # Calculates words number and valid bytes in the last cycle of the transaction
-            pkt_size_in_words = math.ceil(self.pkt_size / self.format_width)
-            last_word_bytes_valid = self.pkt_size % self.format_width
-            if(pattern == 'increment'):
-                for word_indx in range(pkt_size_in_words):
-                    word = word_indx % 8*self.format_width
-                    self.data.append(word)
-            else:
-                print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
-                for indx in range(self.pkt_size):
-                    self.data.append(random.randint(0, 2**8-1))
+            print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
+            for indx in range(self.pkt_size):
+                self.data.append(random.randint(0, 2**self.width-1))
                     
     #---------------------------------
     # Convert data into the byte list
@@ -149,8 +157,12 @@ class Packet:
     # Corrupt data list
     #---------------------------------
 
-    def corrupt_pkt(self, words_num = 1):
-        corrupt_words = random.sample(range(0,len(self.data)), words_num)
+    def corrupt_pkt(self, corrupts):
+        print(f"corrupt_words {corrupts}, len = {len(self.data)}")
+        if isinstance(corrupts, list):
+            corrupt_words = corrupts        
+        else:
+            corrupt_words = random.sample(range(0,len(self.data)), corrupts)
         print(f"corrupt_words {corrupt_words}")
         for word in corrupt_words:
             bit_position = random.randint(0, 7)
