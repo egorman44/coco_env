@@ -10,9 +10,9 @@ class Comparator:
         self.port_out = []
         
     def compare(self):
-        print(f"{self.name} statistics:")
+        print(f"\n[SCB] {self.name} statistics:")
         print(f"\t Num of prd tnx: {len(self.port_prd)}")
-        print(f"\t Num of out tnx: {len(self.port_out)}")
+        print(f"\t Num of out tnx: {len(self.port_out)}")        
         if len(self.port_prd) != len(self.port_out):
             assert False , f"[TEST_FALIED] Number of transactions are not equal. \n\t len(port_prd) = {len(self.port_prd)} \n\t len(port_out) = {len(self.port_out)}"
         for indx in range (0,len(self.port_prd)):

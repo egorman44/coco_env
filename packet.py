@@ -89,7 +89,7 @@ class Packet:
     #---------------------------------
     # Generate delay
     #---------------------------------
-    def gen_delay(self, delay, delay_type):
+    def gen_delay(self, delay_type, delay=None):
         if delay is not None:
             self.delay = delay
         else:
@@ -134,14 +134,17 @@ class Packet:
                 word = 0
         return word_list
 
-    def write_word_list(self, word_list, pkt_size, word_size):
+    def write_word_list(self, word_list, pkt_size, word_size, msb_first=0):
         self.data = []
         word_cntr = 0
         byte_cntr = 0
         self.pkt_size = pkt_size
         for i in range(pkt_size):
             byte_cntr = i % word_size
-            byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
+            if(msb_first):
+                byte = (word_list[word_cntr] >> ((word_size-1-byte_cntr) * 8)) & 0xFF                
+            else:
+                byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
             self.data.append(byte)
             if(byte_cntr) == word_size - 1:
                 word_cntr += 1
