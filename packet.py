@@ -134,17 +134,19 @@ class Packet:
                 word = 0
         return word_list
 
-    def write_word_list(self, word_list, pkt_size, word_size, msb_first=0):
+    def write_word_list(self, word_list, pkt_size, word_size, msb_first=1):
         self.data = []
         word_cntr = 0
         byte_cntr = 0
         self.pkt_size = pkt_size
         for i in range(pkt_size):
             byte_cntr = i % word_size
-            if(msb_first):
-                byte = (word_list[word_cntr] >> ((word_size-1-byte_cntr) * 8)) & 0xFF                
-            else:
-                byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
+            #if(msb_first):
+            #    byte = (word_list[word_cntr] >> ((word_size-1-byte_cntr) * 8)) & 0xFF                
+            #else:
+            #    byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
+            byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
+            #print(f"word_list[word_cntr] = {word_list[word_cntr]:x} byte = {byte}")
             self.data.append(byte)
             if(byte_cntr) == word_size - 1:
                 word_cntr += 1
@@ -161,12 +163,10 @@ class Packet:
     #---------------------------------
 
     def corrupt_pkt(self, corrupts):
-        print(f"corrupt_words {corrupts}, len = {len(self.data)}")
         if isinstance(corrupts, list):
             corrupt_words = corrupts        
         else:
             corrupt_words = random.sample(range(0,len(self.data)), corrupts)
-        print(f"corrupt_words {corrupt_words}")
         for word in corrupt_words:
             bit_position = random.randint(0, 7)
             self.data[word] = self.data[word] ^ (1 << bit_position)        
