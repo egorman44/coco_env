@@ -22,6 +22,7 @@ class Packet:
         self.delay        = None
         self.format_width = format_width
         self.width        = width
+        self.symb_width   = 8
 
     def copy(self, ref_pkt):
         self.data = ref_pkt.data.copy()
@@ -112,9 +113,8 @@ class Packet:
         pkt_size_in_words = math.ceil(self.pkt_size / self.format_width)
         last_word_bytes_valid = self.pkt_size % self.format_width
         if(pattern == 'increment'):
-            for word_indx in range(pkt_size_in_words):
-                word = word_indx % 8*self.format_width
-                self.data.append(word)
+            for indx in range(self.pkt_size):
+                self.data.append(indx % (symb_width**8))
         else:
             print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
             for indx in range(self.pkt_size):
@@ -126,7 +126,7 @@ class Packet:
     
     def get_word_list(self, word_size):
         word_list = []
-        word = 0        
+        word = 0
         for i in range(self.pkt_size):
             word = word | (self.data[i] << (i % word_size)*8)
             if (i % word_size == word_size-1) or (i == len(self.data)-1):                
@@ -146,7 +146,6 @@ class Packet:
             #else:
             #    byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
             byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
-            #print(f"word_list[word_cntr] = {word_list[word_cntr]:x} byte = {byte}")
             self.data.append(byte)
             if(byte_cntr) == word_size - 1:
                 word_cntr += 1
@@ -162,14 +161,23 @@ class Packet:
     # Corrupt data list
     #---------------------------------
 
-    def corrupt_pkt(self, corrupts):
+    def corrupt_pkt(self, corrupts, pattern='random'):
         if isinstance(corrupts, list):
             corrupt_words = corrupts        
         else:
             corrupt_words = random.sample(range(0,len(self.data)), corrupts)
-        for word in corrupt_words:
-            bit_position = random.randint(0, 7)
-            self.data[word] = self.data[word] ^ (1 << bit_position)        
+        for indx in range(len(corrupt_words)): #word in corrupt_words:
+            word_indx = corrupt_words[indx]
+            if(pattern == 'random'):
+                bit_position = random.randint(0, 7)
+            elif(pattern == 'increment'):
+                if indx == 0:
+                    bit_position = 0
+                else:
+                    bit_position += 1
+            else:
+                bit_position = 0            
+            self.data[word_indx] = self.data[word_indx] ^ (1 << bit_position)        
                 
     #---------------------------------
     # Print packet
@@ -179,7 +187,7 @@ class Packet:
         dbg = ''
         if source:            
             dbg = source + '\n'
-        dbg = dbg + f"\t PKT_NAME    : {self.name} \n"
+        dbg = dbg + f"\n\t PKT_NAME    : {self.name} \n"
         dbg = dbg + f"\t FORMAT_WIDTH: {self.format_width}\n"
         dbg = dbg + f"\t PKT_SIZE    : {self.pkt_size}\n"
         if self.delay is not None:
