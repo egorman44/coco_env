@@ -1,3 +1,5 @@
+from cocotb.triggers import RisingEdge
+from cocotb.triggers import FallingEdge
 from cocotb.triggers import Timer
 
 async def reset_dut(reset, duration_ns, positive = 0):
@@ -13,3 +15,12 @@ async def custom_clock(clk, delay = 100):
         await Timer(high_delay, units="ns")
         clk.value = 0
         await Timer(low_delay, units="ns")
+
+async def watchdog_set(clk, comp, limit=100000):
+    watchdog = 0
+    while(len(comp.port_prd) != len(comp.port_out)):
+        await RisingEdge(clk)
+        watchdog += 1
+        if(watchdog == limit):
+            print(f"[WARNING] Watchdog has triggered.")
+            break
