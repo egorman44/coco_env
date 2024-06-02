@@ -15,18 +15,15 @@ class Packet:
     #   self.data
     #   self.delay
     
-    def __init__(self, name, format_width=1, width=8):
+    def __init__(self, name, format_width=1, width=8, symb_width=8):
         self.name         = name
         self.data         = []
+        self.user         = []
         self.pkt_size     = None
         self.delay        = None
         self.format_width = format_width
         self.width        = width
-        self.symb_width   = 8
-
-    def copy(self, ref_pkt):
-        self.data = ref_pkt.data.copy()
-        self.pkt_size = len(ref_pkt.data)
+        self.symb_width   = symb_width
         
     def compare(self, comp_pkt, verbose=0):
         if self.pkt_size != comp_pkt.pkt_size:
@@ -43,16 +40,19 @@ class Packet:
         if(verbose):
             print(f"[Info] Packets {self.name} {comp_pkt.name} are equal")
         
-    def check_pkt(self):
-        if len(self.data) == 0:
-            assert False, "[ERROR] Packet is not generated."
+    #---------------------------------
+    # Generate user data.
+    #---------------------------------
+    def gen_user(self, user):
+        self.user = user.copy()
 
     #---------------------------------
     # Generate based on ref_pkt.
     #---------------------------------
-    def generate_ref_pkt(self, ref_pkt, delay = None, delay_type = 'short'):
-        self.gen_delay(delay, delay_type)
-        self.copy(ref_pkt)
+    def write_data(self, ref_data, delay = None, delay_type = 'short'):
+        self.data = ref_data.copy()
+        self.pkt_size = len(ref_data)
+        self.gen_delay(delay_type, delay)        
         
     #---------------------------------
     # Generate method.
@@ -61,9 +61,9 @@ class Packet:
     def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short'):
         # Generate packet and delay members.
         self.gen_pkt_size(pkt_size, pkt_size_type)        
-        self.gen_delay(delay, delay_type)
+        self.gen_delay(delay_type, delay)
         self.gen_data(pattern)
-        
+    
     #---------------------------------
     # Generate pkt_size.
     #---------------------------------
@@ -108,15 +108,14 @@ class Packet:
     #---------------------------------
     # Generate data
     #---------------------------------
-    def gen_data(self, pattern, ref_pkt = None):        
+    def gen_data(self, pattern):        
         # Calculates words number and valid bytes in the last cycle of the transaction
         pkt_size_in_words = math.ceil(self.pkt_size / self.format_width)
         last_word_bytes_valid = self.pkt_size % self.format_width
         if(pattern == 'increment'):
             for indx in range(self.pkt_size):
-                self.data.append(indx % (symb_width**8))
+                self.data.append(indx % (2**self.width-1))
         else:
-            print("[WARNING] :none of the known patterns are used. \'random\' is choosen.")
             for indx in range(self.pkt_size):
                 self.data.append(random.randint(0, 2**self.width-1))
                     
@@ -134,17 +133,13 @@ class Packet:
                 word = 0
         return word_list
 
-    def write_word_list(self, word_list, pkt_size, word_size, msb_first=1):
+    def write_word_list(self, word_list, pkt_size, word_size):
         self.data = []
         word_cntr = 0
         byte_cntr = 0
         self.pkt_size = pkt_size
         for i in range(pkt_size):
             byte_cntr = i % word_size
-            #if(msb_first):
-            #    byte = (word_list[word_cntr] >> ((word_size-1-byte_cntr) * 8)) & 0xFF                
-            #else:
-            #    byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
             byte = (word_list[word_cntr] >> (byte_cntr * 8)) & 0xFF
             self.data.append(byte)
             if(byte_cntr) == word_size - 1:
@@ -157,28 +152,37 @@ class Packet:
         for i in range(self.pkt_size):
             self.data.append((val >> i*8) & 0xFF)
 
-    #---------------------------------
-    # Corrupt data list
-    #---------------------------------
-
-    def corrupt_pkt(self, corrupts, pattern='random'):
-        if isinstance(corrupts, list):
-            corrupt_words = corrupts        
+    '''
+    corrupt_pkt - method to corrupt the packet. 
+    If position is int then it defines the number of symbols that needs to 
+    be corrupted. If it's list then positions itself are provided. 
+    '''
+    
+    def corrupt_pkt(self, positions, errors=None, pattern='random'):
+        if isinstance(positions, list):
+            pass
+        elif isinstance(positions, int):
+            positions = random.sample(range(0,len(self.data)), positions)
         else:
-            corrupt_words = random.sample(range(0,len(self.data)), corrupts)
-        for indx in range(len(corrupt_words)): #word in corrupt_words:
-            word_indx = corrupt_words[indx]
-            if(pattern == 'random'):
-                bit_position = random.randint(0, 7)
-            elif(pattern == 'increment'):
-                if indx == 0:
-                    bit_position = 0
-                else:
-                    bit_position += 1
+            raise TypeError(f"Expected integer or list datatypes, but got {type(variable).__name__}")
+        print(f"[INFO] Corrupt symbols in positions: {positions}")
+        err_list = []
+        for i in range(len(positions)):
+            if errors is not None:
+                error = errors[i]
             else:
-                bit_position = 0            
-            self.data[word_indx] = self.data[word_indx] ^ (1 << bit_position)        
-                
+                if pattern == 'random':                    
+                    error = random.randint(1, 2** self.symb_width-1)
+                elif pattern == 'bit_error':
+                    bit_position = random.randint(0, 7)
+                    error = 1 << bit_position
+                else:
+                    raise ValueError(f"Not expected value for pattern = {pattern}.")
+            err_list.append(error)
+            self.data[positions[i]] = self.data[positions[i]] ^ error
+        print(f"error = {err_list}")
+
+                            
     #---------------------------------
     # Print packet
     #---------------------------------
@@ -192,6 +196,8 @@ class Packet:
         dbg = dbg + f"\t PKT_SIZE    : {self.pkt_size}\n"
         if self.delay is not None:
             dbg = dbg + f"\t DELAY       : {self.delay}\n"
+        if self.user:
+            dbg = dbg + f"\t USER        : {self.user[0]}\n"
         dbg = dbg + f"\t DATA        : \n"
         for word_indx in range (len(self.data)):
             if word_indx % Packet.dbg_words_in_line == 0:
