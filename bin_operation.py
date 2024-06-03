@@ -31,4 +31,14 @@ def get_word_list(byte_list, word_width, bytes_num):
             word = 0
     return word_list
 
-            
+def reverse_bits(num, width):
+    i = width
+    j = 0
+    temp = 0
+
+    while(i >= 0):
+        temp |= ((num >> j)&1) << i
+        i -=1
+        j +=1
+
+    return temp
