@@ -23,10 +23,10 @@ class Comparator:
                     pkt.print_pkt()
                     prd_hash_tbl[out_hash].print_pkt()
                     assert False , f"[TEST_FALIED] Packets are not equal"            
-        print(f"\n[TEST_PASSED] Packets are equal. Congradulations!\n")
+        print(f"\n[{self.name}] Packets are equal. Congradulations!\n")
         
     def compare(self):
-        print(f"\n[COMP] {self.name} STATISTIC:")
+        print(f"\n[{self.name}] {self.name} STATISTIC:")
         print(f"\t Num of prd tnx: {len(self.port_prd)}")
         for pkt in self.port_prd:
             print(f"\t{pkt.name} : {len(pkt.data)}")
@@ -40,11 +40,11 @@ class Comparator:
                 self.port_out[indx].print_pkt()
                 self.port_prd[indx].print_pkt()
                 assert False , f"[TEST_FALIED] Packets are not equal"            
-        print(f"\n[TEST_PASSED] Packets are equal. Congradulations!\n")
+        print(f"\n[{self.name}] Packets are equal. Congradulations!\n")
 
     def print_statistic(self):
         for pkt in self.port_prd:
-            print(f"[COMP] PREDICTED PACKETS")
+            print(f"[{self.name}] PREDICTED PACKETS")
 
 class Predictor:
 

@@ -36,7 +36,6 @@ class Packet:
                     print(f" \t {self.name}[{indx}] = 0x{self.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
                     print(f" \t {comp_pkt.name}[{indx}] = 0x{comp_pkt.data[indx]:{Packet.dbg_fill}{self.format_width}x}")
             return 1
-        print()
         if(verbose):
             print(f"[Info] Packets {self.name} {comp_pkt.name} are equal")
         
@@ -164,7 +163,7 @@ class Packet:
         elif isinstance(positions, int):
             positions = random.sample(range(0,len(self.data)), positions)
         else:
-            raise TypeError(f"Expected integer or list datatypes, but got {type(variable).__name__}")
+            raise TypeError(f"Expected integer or list datatypes, but got {type(variable).__name__}")        
         print(f"[INFO] Corrupt symbols in positions: {positions}")
         err_list = []
         for i in range(len(positions)):
