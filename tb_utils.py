@@ -1,7 +1,8 @@
 from cocotb.triggers import RisingEdge
 from cocotb.triggers import FallingEdge
-from cocotb.triggers import Timer
-
+from cocotb.triggers import Timer    
+from cocotb.utils import get_sim_time
+    
 async def reset_dut(reset, duration_ns, positive = 0):
     reset.value = 0 ^ positive
     await Timer(duration_ns, units="ns")
@@ -24,3 +25,13 @@ async def watchdog_set(clk, comp, limit=100000):
         if(watchdog == limit):
             print(f"[WARNING] Watchdog has triggered.")
             break
+
+async def assert_signal(clk, signal, correct_value=0):
+    while True:
+        if signal.value == correct_value:
+            await RisingEdge(clk)
+        else:
+            print(f"time= {get_sim_time(units='ns')}")
+            assert False , f"[TEST_FALIED] signal {signal._name} was asserted"
+        
+    
