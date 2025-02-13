@@ -26,12 +26,11 @@ async def watchdog_set(clk, comp, limit=100000):
             print(f"[WARNING] Watchdog has triggered.")
             break
 
-async def assert_signal(clk, signal, correct_value=0):
+async def assert_signal(clk, reset, signal, correct_value=0):
     while True:
-        if signal.value == correct_value:
+        if signal.value == correct_value or reset == 1:
             await RisingEdge(clk)
         else:
             print(f"time= {get_sim_time(units='ns')}")
             assert False , f"[TEST_FALIED] signal {signal._name} was asserted"
-        
     
