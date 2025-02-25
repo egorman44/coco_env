@@ -157,18 +157,18 @@ class Packet:
     be corrupted. If it's list then positions itself are provided. 
     '''
     
-    def corrupt_pkt(self, positions, errors=None, pattern='random'):
-        if isinstance(positions, list):
+    def corrupt_pkt(self, err_pos, err_val=None, pattern='random'):
+        if isinstance(err_pos, list):
             pass
-        elif isinstance(positions, int):
-            positions = random.sample(range(0,len(self.data)), positions)
+        elif isinstance(err_pos, int):
+            err_pos = random.sample(range(0,len(self.data)), err_pos)
         else:
             raise TypeError(f"Expected integer or list datatypes, but got {type(variable).__name__}")        
-        print(f"[INFO] Corrupt symbols in positions: {positions}")
+        print(f"[INFO] Corrupt symbols in err_pos: {err_pos}")
         err_list = []
-        for i in range(len(positions)):
-            if errors is not None:
-                error = errors[i]
+        for i in range(len(err_pos)):
+            if err_val is not None:
+                error = err_val[i]
             else:
                 if pattern == 'random':                    
                     error = random.randint(1, 2** self.symb_width-1)
@@ -178,7 +178,7 @@ class Packet:
                 else:
                     raise ValueError(f"Not expected value for pattern = {pattern}.")
             err_list.append(error)
-            self.data[positions[i]] = self.data[positions[i]] ^ error
+            self.data[err_pos[i]] = self.data[err_pos[i]] ^ error
         print(f"error = {err_list}")
 
                             
