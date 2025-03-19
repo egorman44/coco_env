@@ -51,59 +51,85 @@ class Packet:
     def write_data(self, ref_data, delay = None, delay_type = 'short'):
         self.data = ref_data.copy()
         self.pkt_size = len(ref_data)
-        self.gen_delay(delay_type, delay)        
+        self.gen_delay(delay)        
         
     #---------------------------------
     # Generate method.
     #---------------------------------
 
-    def generate(self, pkt_size = None, pkt_size_type = 'random', pattern = 'random', delay = None, delay_type = 'short'):
+    def generate(self, pkt_size: int=None, delay: int=None, pattern: str='random'):
         # Generate packet and delay members.
-        self.gen_pkt_size(pkt_size, pkt_size_type)        
-        self.gen_delay(delay_type, delay)
+        self.gen_pkt_size(pkt_size)        
+        self.gen_delay(delay)
         self.gen_data(pattern)
     
     #---------------------------------
     # Generate pkt_size.
     #---------------------------------
+
     
-    def gen_pkt_size(self, pkt_size, pkt_size_type):
-        # If pkt_size was not set
-        if pkt_size is not None:
+    def gen_pkt_size(self, pkt_size):
+        if pkt_size is None:
+            self.pkt_size = random.randint(1, 1500)
+        elif isinstance(pkt_size, int):
+            if pkt_size <= 0:
+                raise ValueError("[ERROR] Packet size must be a positive integer.")
             self.pkt_size = pkt_size
-        else:
-            if pkt_size_type == 'random':
-                pkt_size_type = random.choice(['small', 'medium', 'long'])
-                # Randomize pkt_size
-            if pkt_size_type == 'one_word':
-                self.pkt_size = random.randint(1,10)            
-            elif pkt_size_type == 'small':
-                self.pkt_size = random.randint(10,100)
-            elif pkt_size_type == 'medium':
-                self.pkt_size = random.randint(100, 500)
-            elif pkt_size_type == 'long':
-                self.pkt_size = random.randint(500, 1500)
+        elif isinstance(pkt_size, str):
+            if pkt_size.isdigit():
+                self.pkt_size = int(pkt_size)
             else:
-                raise ValueError("[ERROR] Invalid pkt_size_type: " + str(pkt_size_type))
-    
+                # Packet size ranges mapping (keys in lowercase)
+                pkt_size_ranges = {
+                    'random': (1, 1500),
+                    'one_word': (1, 10),
+                    'small': (10, 100),
+                    'medium': (100, 500),
+                    'long': (500, 1500)
+                }
+
+            # Fetch range safely and generate packet size
+            pkt_range = pkt_size_ranges.get(pkt_size.lower())
+            if pkt_range:
+                self.pkt_size = random.randint(*pkt_range)
+            else:
+                raise ValueError(f"[ERROR] Invalid pkt_size: {pkt_size}")
+        else:
+            raise TypeError("[ERROR] Expected an integer or a valid string for pkt_size.")
+        
     #---------------------------------
     # Generate delay
     #---------------------------------
-    def gen_delay(self, delay_type, delay=None):
-        if delay is not None:
+    
+    def gen_delay(self, delay):
+        if delay is None:
+            self.delay = random.randint(0, 250)
+        elif isinstance(delay, int):
+            if delay < 0:
+                raise ValueError("[ERROR] Delay must be a non-negative integer.")
             self.delay = delay
-        else:
-            if delay_type == 'no_delay':
-                self.delay = 0
-            elif delay_type == 'short':
-                self.delay = random.randint(1,5)
-            elif delay_type == 'medium':
-                self.delay = random.randint(5,50)
-            elif delay_type == 'long':
-                self.delay = random.randint(50,250)
+        elif isinstance(delay, str):
+            if delay.isdigit():
+                self.delay = int(delay)
             else:
-                self.delay = random.randint(500, 1000)        
-
+                # Delay ranges mapping (keys in lowercase)
+                delay_ranges = {
+                    'random': (0, 250),
+                    'no_delay': (0, 0),
+                    'short': (0, 5),
+                    'medium': (5, 50),
+                    'long': (50, 250)
+                }
+    
+                # Fetch range safely and generate delay
+                delay_range = delay_ranges.get(delay.lower())
+                if delay_range:
+                    self.delay = random.randint(*delay_range)
+                else:
+                    raise ValueError(f"[ERROR] Invalid delay value: {delay}")
+        else:
+            raise TypeError("[ERROR] Expected an integer or a valid string for delay.")
+            
     #---------------------------------
     # Generate data
     #---------------------------------
