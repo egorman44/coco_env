@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "coco_env"
+version = "0.1.0"
+description = "CocoTB verification environment package"
+readme = "README.md"
+authors = [
+    {name = "Egor Smirnov", email = "easmirnov44@gmail.com"},
+]
+dependencies = [
+    "cocotb",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["coco_env*"]
