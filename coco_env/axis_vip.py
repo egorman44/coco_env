@@ -10,21 +10,38 @@ from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import Optional, List, Union, Any, Iterator
 
-# Import Packet from existing infrastructure
-try:
-    from packet import Packet
-except ImportError:
-    class Packet:
-        """Mock for linting/standalone"""
-        def __init__(self, name): self.name = name; self.data = []; self.user = []
-        def write_word_list(self, data, size, width): pass
-        def gen_user(self, user): pass
-        def print_pkt(self, header): pass
-
 # ==============================================================================
 # Enums and Configuration
 # ==============================================================================
 
+# Mock packet if not available in path or defined locally in axis_vip
+class Packet:
+    def __init__(self, name): 
+        self.name = name
+        self.data = []
+        self.user = []
+        self.pkt_size = 0
+        self.delay = 0
+
+    def words_to_bytes(self, word_list: List[int], total_bytes: int, width: int) -> None:
+        """Converts a list of multi-byte words into a list of bytes.
+        
+        Args:
+            word_list: List of integers representing words correctly packed
+            total_bytes: Total number of valid bytes in the packet
+            width: Width of the interface in bytes
+        """
+        self.pkt_size = total_bytes
+        byte_list = []
+        
+        for word in word_list:
+            for i in range(width):
+                if len(byte_list) < total_bytes:
+                    byte_list.append((word >> (i * 8)) & 0xFF)
+                else:
+                    break
+        self.data = byte_list
+         
 class AxisPackingMode(Enum):
     """Defines how data is packed/unpacked in the signal."""
     PACKED = auto()      # Single wide signal
@@ -74,7 +91,7 @@ class AxisIf:
                  width: int, unpack: Optional[AxisPackingMode] = None, 
                  tvalid: Optional[SimHandleBase] = None, tlast: Optional[SimHandleBase] = None, 
                  tkeep: Optional[SimHandleBase] = None, tuser: Optional[SimHandleBase] = None, 
-                 tready: Optional[SimHandleBase] = None, tkeep_type: AxisKeepType = AxisKeepType.PACKED, uwidth: Optional[int] = None):
+                 tready: Optional[SimHandleBase] = None, tkeep_type: AxisKeepType = AxisKeepType.CHISEL_VEC, uwidth: Optional[int] = None):
         self.name = name
         self.aclk = aclk
         self.tdata = tdata
@@ -113,31 +130,12 @@ class AxisDriver:
 
         self.tvalid_delay = 0
 
+    # TODO: 
     def _detect_unpack_mode(self, tdata_handle: Any) -> AxisPackingMode:
         """
         Auto-detects whether tdata is unpacked (list-like) or packed (single signal).
         """
-        # Check if it behaves like a list/sequence
-        if isinstance(tdata_handle, (list, tuple)):
-             return AxisPackingMode.UNPACKED
-        
-        # Check for Chisel Vec or other iterable handle that isn't a single BinaryValue
-        # NonHierarchyObject is often the base for signal arrays in some cocotb GPI backends
-        if hasattr(tdata_handle, '__iter__') and not isinstance(tdata_handle, (BinaryValue, SimHandleBase)):
-             # Double check it's not just a single handle
-             try:
-                 iter(tdata_handle)
-                 # If we can iterate, treat as vector/unpacked
-                 # However, SimHandleBase is sometimes iterable (signals in a module), so we must be careful.
-                 # Best check: does it have a 'value' attribute that returns an integer directly?
-                 # If it's a list of signals, it won't have a single .value
-                 if not hasattr(tdata_handle, 'value'):
-                     return AxisPackingMode.CHISEL_VEC
-             except TypeError:
-                 pass
-
-        # Default to packed for single signal handles
-        return AxisPackingMode.PACKED
+        return AxisPackingMode.CHISEL_VEC
 
     def _get_tvalid_value(self, tnx_completed: bool) -> int:
         """Determines the next value for tvalid based on flow control."""
@@ -299,14 +297,13 @@ class AxisMonitor:
     """
     AXI Stream Monitor.
     """
-    def __init__(self, name: str, axis_if: AxisIf, aport: list = None, pkt0_word0: int = 0, static_pkt: Optional[int] = None):
+    def __init__(self, name: str, axis_if: AxisIf, aport: list = None, pkt0_word0: int = 0):
         self.name = name
         self.log = logging.getLogger(f"cocotb.{name}")
         self.axis_if = axis_if
         self.aport = aport if aport is not None else []
         self.width = axis_if.width
-        self.pkt0_word0 = pkt0_word0
-        self.static_pkt = static_pkt
+        self.pkt0_word0 = pkt0_word0        
 
         # Auto-detect unpack mode if not provided in interface
         if self.axis_if.unpack is None:
@@ -337,58 +334,35 @@ class AxisMonitor:
         Calculates the validity mask for the current word.
         Returns a bitmask where 1 indicates valid byte.
         """
-        if self.axis_if.tkeep is not None:
-            tkeep_val = 0
-            
-            if self.axis_if.tkeep_type == AxisKeepType.PACKED:
-                tkeep_val = int(self.axis_if.tkeep.value)
-            
-            elif self.axis_if.tkeep_type == AxisKeepType.CHISEL_VEC:
-                for i, signal in enumerate(self.axis_if.tkeep):
-                    if bool(signal.value):
-                        tkeep_val |= (1 << i)
-            
-            elif self.axis_if.tkeep_type == AxisKeepType.FFS:
-                if self.axis_if.tkeep.value == 0:
-                     tkeep_val = 0
-                else:
-                     # FFS usually implies 1-hot or similar? 
-                     # Legacy code: (value << 1) - 1. Example: 4 -> 8-1=7 (0b111)
-                     tkeep_val = (int(self.axis_if.tkeep.value) << 1) - 1
-            
-            # Now we have the raw tkeep mask.
-            # Calculate popcount for stats
-            self.pkt_size += bin(tkeep_val).count('1')
-            
-            # Legacy logic: 
-            # for byte_indx in range(0, self.width):
-            #    if check_pos(tkeep_int_val, byte_indx):                    
-            #        tkeep_int |= 0xFF << (8 * byte_indx)
-            # tkeep_int = int(bin(tkeep_int)[:1:-1], 2)   <-- This was the slow part
-            
-            # The monitor logic seems to be creating a *byte mask* (0xFF per byte)? 
-            # Or just filtering bytes?
-            # Re-reading legacy: data.append(tdata_int & tkeep_int). 
-            # So tkeep_int must be a full data width mask (e.g. 0xFFFF for 2 bytes).
-            
-            full_mask = 0
-            for i in range(self.width):
-                if (tkeep_val >> i) & 1:
-                    full_mask |= (0xFF << (i * 8))
-            
-            # And legacy reversed it?
-            # int(bin(tkeep_int)[:1:-1], 2)
-            # If standard tkeep is LSB=Byte0, then normally we don't reverse unless big-endian?
-            # Standard AXI Stream: TKEEP[0] corresponds to TDATA[7:0].
-            # If the legacy code reversed it, it might be due to a specific endianness requirement.
-            # Let's trust the logic: "create byte mask" -> "reverse it".
-            
-            reversed_mask = reverse_bits(full_mask, self.width * 8)
-            return reversed_mask
-
-        else:
-            self.pkt_size += self.width
-            return (1 << (self.width * 8)) - 1 # All ones
+        tkeep_val = 0
+        
+        if self.axis_if.tkeep_type == AxisKeepType.PACKED:
+            tkeep_val = int(self.axis_if.tkeep.value)
+        
+        elif self.axis_if.tkeep_type == AxisKeepType.CHISEL_VEC:
+            for i, signal in enumerate(self.axis_if.tkeep):
+                if bool(signal.value):
+                    tkeep_val |= (1 << i)
+        
+        elif self.axis_if.tkeep_type == AxisKeepType.FFS:
+            if self.axis_if.tkeep.value == 0:
+                 tkeep_val = 0
+            else:
+                 # FFS usually implies 1-hot or similar? 
+                 # Legacy code: (value << 1) - 1. Example: 4 -> 8-1=7 (0b111)
+                 tkeep_val = (int(self.axis_if.tkeep.value) << 1) - 1
+        
+        # Now we have the raw tkeep mask.
+        # Calculate popcount for stats
+        self.pkt_size += bin(tkeep_val).count('1')
+        
+        full_mask = 0
+        for i in range(self.width):
+            if (tkeep_val >> i) & 1:
+                full_mask |= (0xFF << (i * 8))
+        
+        reversed_mask = reverse_bits(full_mask, self.width * 8)
+        return reversed_mask
 
     async def mon_if(self) -> None:
         self.log.info("Starting AxisMonitor")
@@ -414,9 +388,8 @@ class AxisMonitor:
                     # if pkt0_word0=1: data[0] is Byte0 (LSB)
                     # if pkt0_word0=0: data[0] is ByteN (MSB?)
                     
-                    data_list = self.axis_if.tdata.value
+                    data_list = [h.value for h in self.axis_if.tdata]
                     if self.pkt0_word0 == 0:
-                        data_list = list(data_list)
                         data_list.reverse()
                     
                     for i, val in enumerate(data_list):
@@ -450,7 +423,11 @@ class AxisMonitor:
                 self.mon_tuser()
 
                 # Handle Keep / Masking
-                tkeep_mask = self.mon_tkeep()
+                if self.axis_if.tkeep is not None:
+                     tkeep_mask = self.mon_tkeep()
+                else:
+                     tkeep_mask = self._handle_no_tkeep()
+
                 self.data.append(tdata_int & tkeep_mask)
 
                 # Check Last
@@ -458,17 +435,29 @@ class AxisMonitor:
                 if self.axis_if.tlast is not None:
                      if self.axis_if.tlast.value == 1:
                          is_last = True
-                elif self.static_pkt is not None:
-                     if self.pkt_size >= self.static_pkt:
-                         is_last = True
+                else: 
+                     is_last = self._handle_no_tlast()
                 
                 if is_last:
                     self.write_aport()
 
+    def _handle_no_tlast(self) -> bool:
+        """Handle cases where tlast is missing.
+        
+        This method should be overridden by child classes if tlast is not present.
+        """
+        raise ValueError("tlast signal is not present and _handle_no_tlast is not overridden")
+
+    def _handle_no_tkeep(self) -> int:
+        """Handle cases where tkeep is missing.
+        
+        This method should be overridden by child classes if tkeep is not present.
+        """
+        raise ValueError("tkeep signal is not present and _handle_no_tkeep is not overridden")
+
     def write_aport(self) -> None:
         pkt_mon = Packet(f"{self.name}-{self.pkt_cntr}")
-        pkt_mon.write_word_list(self.data, self.pkt_size, self.width)
-        pkt_mon.gen_user(self.user)
+        pkt_mon.words_to_bytes(self.data, self.pkt_size, self.width)
         
         # self.log.info(f"Monitor captured packet: {pkt_mon.name}") # Verbose
         
