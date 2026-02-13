@@ -277,7 +277,7 @@ class AxisMonitor:
     """
     AXI Stream Monitor (Abstract Base Class).
     """
-    def __init__(self, name: str, axis_if: AxisIf, aport: list = None, pkt0_word0: int = 0):
+    def __init__(self, name: str, axis_if: AxisIf, aport: list = None, pkt0_word0: int = 0, verbose: bool = False):
         self.name = name
         self.log = logging.getLogger(f"cocotb.{name}")
         self.axis_if = axis_if
@@ -289,6 +289,7 @@ class AxisMonitor:
         self.user = []
         self.pkt_size = 0
         self.pkt_cntr = 0
+        self.verbose = verbose
 
     def mon_tuser(self) -> None:
         """
@@ -403,9 +404,13 @@ class AxisMonitor:
     def write_aport(self) -> None:
         pkt_mon = Packet(f"{self.name}-{self.pkt_cntr}")
         pkt_mon.words_to_bytes(self.data, self.pkt_size, self.width)
-        
+        if self.verbose:
+            print(f"Monitor {self.name} pkt_num: {self.pkt_cntr}\n")
+            pkt_mon.print_packet()
         self.aport.append(pkt_mon)
         self.pkt_cntr += 1
+        self.data = []
+        self.pkt_size = 0
 
 
 
