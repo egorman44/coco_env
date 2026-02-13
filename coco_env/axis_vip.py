@@ -7,8 +7,9 @@ import random
 import math
 import logging
 from enum import Enum, auto
-from dataclasses import dataclass, field
-from typing import Optional, List, Union, Any, Iterator
+from dataclasses import dataclass, field, fields, is_dataclass
+from typing import Optional, List, Union, Any, Iterator, Type
+
 
 # ==============================================================================
 # Enums and Configuration
@@ -22,6 +23,23 @@ class Packet:
         self.user = []
         self.pkt_size = 0
         self.delay = 0
+        self.bytes_in_line = 8
+
+    def print_packet(self):
+        """Prints the packet data in a hex dump format."""
+        if not self.data:
+            print(f"Packet {self.name} is empty")
+            return
+
+        # Calculate max position for alignment logic
+        max_pos = max(0, len(self.data) - 1)
+        # Calculate width of the position field
+        pos_width = len(str(max_pos))
+        
+        for i in range(0, len(self.data), self.bytes_in_line):
+            chunk = self.data[i : i + self.bytes_in_line]
+            hex_bytes = " ".join(f"{b:02x}" for b in chunk)
+            print(f"{i:0{pos_width}d}: {hex_bytes}")
 
     def words_to_bytes(self, word_list: List[int], total_bytes: int, width: int) -> None:
         """Converts a list of multi-byte words into a list of bytes.
@@ -42,12 +60,6 @@ class Packet:
                     break
         self.data = byte_list
          
-class AxisPackingMode(Enum):
-    """Defines how data is packed/unpacked in the signal."""
-    PACKED = auto()      # Single wide signal
-    UNPACKED = auto()    # List/Array of signals
-    CHISEL_VEC = auto()  # Chisel Vec (List of signals)
-
 class FlowControlMode(Enum):
     """Defines the flow control behavior for tvalid."""
     ALWAYS_ON = auto()
@@ -88,8 +100,7 @@ class AxisIf:
     """Container for AXI Stream Interface signals."""
 
     def __init__(self, name: str, aclk: SimHandleBase, tdata: Union[SimHandleBase, List[SimHandleBase]], 
-                 width: int, unpack: Optional[AxisPackingMode] = None, 
-                 tvalid: Optional[SimHandleBase] = None, tlast: Optional[SimHandleBase] = None, 
+                 width: int, tvalid: Optional[SimHandleBase] = None, tlast: Optional[SimHandleBase] = None, 
                  tkeep: Optional[SimHandleBase] = None, tuser: Optional[SimHandleBase] = None, 
                  tready: Optional[SimHandleBase] = None, tkeep_type: AxisKeepType = AxisKeepType.CHISEL_VEC, uwidth: Optional[int] = None):
         self.name = name
@@ -102,7 +113,6 @@ class AxisIf:
         self.tready = tready
         self.width = width
         self.uwidth = uwidth
-        self.unpack = unpack
         self.tkeep_type = tkeep_type
 
 # ==============================================================================
@@ -111,7 +121,7 @@ class AxisIf:
 
 class AxisDriver:
     """
-    AXI Stream Master Driver.
+    AXI Stream Master Driver (Abstract Base Class).
     """
     def __init__(self, name: str, axis_if: AxisIf, pkt0_word0: int = 1, config: AxisConfig = AxisConfig()):
         self.name = name
@@ -120,22 +130,7 @@ class AxisDriver:
         self.width = axis_if.width
         self.pkt0_word0 = pkt0_word0
         self.config = config
-        
-        # Auto-detect unpack mode if not provided
-        if self.axis_if.unpack is None:
-            self.unpack = self._detect_unpack_mode(self.axis_if.tdata)
-            self.log.info(f"Auto-detected unpacking mode: {self.unpack.name}")
-        else:
-            self.unpack = self.axis_if.unpack
-
         self.tvalid_delay = 0
-
-    # TODO: 
-    def _detect_unpack_mode(self, tdata_handle: Any) -> AxisPackingMode:
-        """
-        Auto-detects whether tdata is unpacked (list-like) or packed (single signal).
-        """
-        return AxisPackingMode.CHISEL_VEC
 
     def _get_tvalid_value(self, tnx_completed: bool) -> int:
         """Determines the next value for tvalid based on flow control."""
@@ -173,8 +168,12 @@ class AxisDriver:
             self.axis_if.tlast.value = 1 if last_word else 0
 
     def drive_tuser(self, pkt: Packet, last_word: bool) -> None:
-        if self.axis_if.tuser is not None and pkt.user:
-            self.axis_if.tuser.value = pkt.user[0]
+        """
+        Drives tuser signal.
+        This method should be overridden by child classes if tuser handling is needed.
+        """
+        if self.axis_if.tuser is not None:
+             raise NotImplementedError("tuser signal is present but drive_tuser is not overridden")
 
     def drive_tkeep(self, pkt: Packet, last_word: bool) -> None:
         if self.axis_if.tkeep is not None:
@@ -205,44 +204,22 @@ class AxisDriver:
         if len(data_chunk) < self.width:
              data_chunk.extend([0] * (self.width - len(data_chunk)))
 
-        # Handle Endianness/Ordering based on pkt0_word0 and Packing Mode
-        # pkt0_word0 = 1: byte 0 is LSB/First element
-        # pkt0_word0 = 0: byte 0 is MSB/Last element
-        
+        # Handle Endianness/Ordering based on pkt0_word0
         ordered_data = list(data_chunk)
 
-        needs_reverse = False
-        if self.unpack == AxisPackingMode.UNPACKED:
-             # For unpacked, list usually matches index. 
-             # If pkt0_word0=1, index 0 is data[0]. If driver logic requires reversal:
-             if self.pkt0_word0 == 1:
-                 needs_reverse = True # Legacy behavior preserved: unpacked + pkt0_word0=1 => reverse
+        # Assumes tdata provided as List of byte lanes.
+        # If pkt0_word0=1 (default), byte 0 is LSB. List index 0 drives LSB. No reverse.
+        # If pkt0_word0=0, byte 0 is MSB (?). Need to reverse so byte 0 drives MSB lane (highest index).
+        # OR byte 0 drives LSB but the DUT expects MSB first?
+        # Reverting to simple logic: If pkt0_word0=0, reverse the list.
         
-        elif self.unpack == AxisPackingMode.CHISEL_VEC:
-             if self.pkt0_word0 == 0:
-                 needs_reverse = True
-        
-        elif self.unpack == AxisPackingMode.PACKED:
-             if self.pkt0_word0 == 0:
-                 needs_reverse = True
+        if self.pkt0_word0 == 0:
+             ordered_data.reverse()
 
-        if needs_reverse:
-            ordered_data.reverse()
-
-        # Drive proper interface
-        if self.unpack == AxisPackingMode.UNPACKED:
-            self.axis_if.tdata.value = ordered_data
-        
-        elif self.unpack == AxisPackingMode.CHISEL_VEC:
-            for i, val in enumerate(ordered_data):
-                self.axis_if.tdata[i].value = val
-                
-        elif self.unpack == AxisPackingMode.PACKED:
-            # Construct integer from bytes
-            data_int = 0
-            for i, byte_val in enumerate(ordered_data):
-                data_int |= (byte_val & 0xFF) << (i * 8)
-            self.axis_if.tdata.value = data_int
+        # Drive proper interface (Assumes List/CHISEL_VEC structure)
+        # If not iterable, this will fail, which is intended per "assume tdata comes as a list"
+        for i, val in enumerate(ordered_data):
+            self.axis_if.tdata[i].value = val
 
     def check_transaction_completion(self) -> bool:
         if self.axis_if.tready is None:
@@ -269,7 +246,7 @@ class AxisDriver:
         while word_num < pkt_len_in_words:
             last_word = (word_num == pkt_len_in_words - 1)
             
-            self.drive_tlast(last_word)
+            self.drive_tlast(last_word)            
             self.drive_tuser(pkt, last_word)
             self.drive_tkeep(pkt, last_word)
             self.drive_tdata(pkt, last_word, word_num)
@@ -289,13 +266,16 @@ class AxisDriver:
         
         self.log.debug(f"Finished sending packet: {pkt.name}")
 
+
+
+
 # ==============================================================================
 # AxisMonitor
 # ==============================================================================
 
 class AxisMonitor:
     """
-    AXI Stream Monitor.
+    AXI Stream Monitor (Abstract Base Class).
     """
     def __init__(self, name: str, axis_if: AxisIf, aport: list = None, pkt0_word0: int = 0):
         self.name = name
@@ -305,29 +285,18 @@ class AxisMonitor:
         self.width = axis_if.width
         self.pkt0_word0 = pkt0_word0        
 
-        # Auto-detect unpack mode if not provided in interface
-        if self.axis_if.unpack is None:
-            # We can't reuse private method easily without inheritance or utility, but duplicating precise logic is fine here
-            # or just creating utility class. For now, inline logic is fine.
-            if isinstance(self.axis_if.tdata, (list, tuple)):
-                 self.unpack = AxisPackingMode.UNPACKED
-            elif hasattr(self.axis_if.tdata, '__iter__') and not hasattr(self.axis_if.tdata, 'value'):
-                 self.unpack = AxisPackingMode.CHISEL_VEC
-            else:
-                 self.unpack = AxisPackingMode.PACKED
-            self.log.info(f"Monitor Auto-detected unpacking mode: {self.unpack.name}")
-        else:
-            self.unpack = self.axis_if.unpack
-
         self.data = []
         self.user = []
         self.pkt_size = 0
         self.pkt_cntr = 0
 
     def mon_tuser(self) -> None:
-        if self.axis_if.tuser is not None and self.axis_if.tlast is not None:
-            if self.axis_if.tlast.value == 1:
-                self.user.append(self.axis_if.tuser.value)
+        """
+        Monitors tuser signal.
+        This method should be overridden by child classes if tuser handling is needed.
+        """
+        if self.axis_if.tuser is not None:
+            raise NotImplementedError("tuser signal is present but mon_tuser is not overridden")
 
     def mon_tkeep(self) -> int:
         """
@@ -348,21 +317,16 @@ class AxisMonitor:
             if self.axis_if.tkeep.value == 0:
                  tkeep_val = 0
             else:
-                 # FFS usually implies 1-hot or similar? 
-                 # Legacy code: (value << 1) - 1. Example: 4 -> 8-1=7 (0b111)
                  tkeep_val = (int(self.axis_if.tkeep.value) << 1) - 1
         
-        # Now we have the raw tkeep mask.
-        # Calculate popcount for stats
-        self.pkt_size += bin(tkeep_val).count('1')
+        return tkeep_val
+
+    def _handle_no_tdata(self):
+        """Handle cases where tdata is missing.
         
-        full_mask = 0
-        for i in range(self.width):
-            if (tkeep_val >> i) & 1:
-                full_mask |= (0xFF << (i * 8))
-        
-        reversed_mask = reverse_bits(full_mask, self.width * 8)
-        return reversed_mask
+        This method should be overridden by child classes if tdata is not present.
+        """
+        raise ValueError("tdata signal is not present and _handle_no_tdata is not overridden")
 
     async def mon_if(self) -> None:
         self.log.info("Starting AxisMonitor")
@@ -378,55 +342,36 @@ class AxisMonitor:
                 tdata_int = 0
                 
                 # capture raw data into integer
-                if self.unpack == AxisPackingMode.UNPACKED:
-                    # Legacy: loop byte_range, shift
-                    # if pkt0_word0=1: ranges(width) (0..W-1)
-                    # else: ranges(width)[::-1] (W-1..0)
-                    # shift = index * 8
-                    
-                    # Essentially:
-                    # if pkt0_word0=1: data[0] is Byte0 (LSB)
-                    # if pkt0_word0=0: data[0] is ByteN (MSB?)
-                    
-                    data_list = [h.value for h in self.axis_if.tdata]
-                    if self.pkt0_word0 == 0:
-                        data_list.reverse()
-                    
-                    for i, val in enumerate(data_list):
-                        tdata_int |= (val & 0xFF) << (i * 8)
+                # Assume List of Signals
+                data_list = [h.value for h in self.axis_if.tdata]
 
-                elif self.unpack == AxisPackingMode.CHISEL_VEC:
-                    for i in range(self.width):
-                        val = self.axis_if.tdata[i].value
-                        tdata_int |= (val & 0xFF) << (i * 8)
-                        
-                elif self.unpack == AxisPackingMode.PACKED:
-                    tdata_int = int(self.axis_if.tdata.value)
-                    
-                    # Legacy packed reversal logic:
-                    # if pkt0_word0 == 0: reverse BYTES
-                    if self.pkt0_word0 == 0 and self.width > 1:
-                        # Reverse bytes
-                        # We can use the helper function or bytes conversion
-                        # bytes conversion is often faster/cleaner
-                        try:
-                            # Width in bytes
-                            val_bytes = tdata_int.to_bytes(self.width, 'little')
-                            # The legacy reverse loop effectively swaps endianness
-                            tdata_int = int.from_bytes(val_bytes, 'big')
-                            # Wait, legacy: for byte_indx ... tdata_rev |= ...
-                            # Yes, effectively byte reversal
-                        except OverflowError:
-                            self.log.error("Data width mismatch during byte reversal")
+                if self.pkt0_word0 == 0:
+                    data_list.reverse()
+                
+                for i, val in enumerate(data_list):
+                    tdata_int |= (val & 0xFF) << (i * 8)
 
                 # Handle User
                 self.mon_tuser()
 
                 # Handle Keep / Masking
                 if self.axis_if.tkeep is not None:
-                     tkeep_mask = self.mon_tkeep()
+                     tkeep_val = self.mon_tkeep()
                 else:
-                     tkeep_mask = self._handle_no_tkeep()
+                     tkeep_val = self._handle_no_tkeep()
+
+                # Calculate popcount for stats
+                self.pkt_size += bin(tkeep_val).count('1')
+
+                full_mask = 0
+                for i in range(self.width):
+                    if (tkeep_val >> i) & 1:
+                        full_mask |= (0xFF << (i * 8))
+
+                if self.pkt0_word0 == 0:
+                    tkeep_mask = reverse_bits(full_mask, self.width * 8)
+                else:
+                    tkeep_mask = full_mask
 
                 self.data.append(tdata_int & tkeep_mask)
 
@@ -459,15 +404,12 @@ class AxisMonitor:
         pkt_mon = Packet(f"{self.name}-{self.pkt_cntr}")
         pkt_mon.words_to_bytes(self.data, self.pkt_size, self.width)
         
-        # self.log.info(f"Monitor captured packet: {pkt_mon.name}") # Verbose
-        
-        # Reset state
-        self.data = []
-        self.user = []
-        self.pkt_size = 0
-        
         self.aport.append(pkt_mon)
         self.pkt_cntr += 1
+
+
+
+
 
 # ==============================================================================
 # AxisResponder
@@ -497,9 +439,6 @@ class AxisResponder:
                 await RisingEdge(self.axis_if.aclk)
                 
             elif self.config.flow_ctrl_mode == FlowControlMode.RANDOM:
-                # Example Logic: Backpressure logic from legacy "BACKPRESSURE_*"
-                # We can implement a more generic random backpressure
-                
                 # Active phase
                 self.axis_if.tready.value = 1
                 active_cycles = random.randint(1, 10) 
