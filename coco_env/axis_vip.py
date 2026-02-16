@@ -69,24 +69,19 @@ def reverse_bits(value: int, width: int) -> int:
 # Interfaces
 # ==============================================================================
 
+@dataclass
 class AxisIf:
     """Container for AXI Stream Interface signals."""
-
-    def __init__(self, name: str, aclk: SimHandleBase, tdata: Union[SimHandleBase, List[SimHandleBase]],
-                 width: int, tvalid: Optional[SimHandleBase] = None, tlast: Optional[SimHandleBase] = None,
-                 tkeep: Optional[SimHandleBase] = None, tuser: Optional[SimHandleBase] = None,
-                 tready: Optional[SimHandleBase] = None, tkeep_type: AxisKeepType = AxisKeepType.CHISEL_VEC, uwidth: Optional[int] = None):
-        self.name = name
-        self.aclk = aclk
-        self.tdata = tdata
-        self.tvalid = tvalid
-        self.tkeep = tkeep
-        self.tlast = tlast
-        self.tuser = tuser
-        self.tready = tready
-        self.width = width
-        self.uwidth = uwidth
-        self.tkeep_type = tkeep_type
+    name: str
+    aclk: object                                        # clock handle
+    tdata: object                                       # data signal or list of byte signals
+    width: int                                          # interface width in bytes
+    tvalid: object = None                               # valid signal handle
+    tlast: object = None                                # last signal handle
+    tkeep: object = None                                # keep signal handle
+    tuser: object = None                                # user signal handle
+    tready: object = None                               # ready signal handle
+    tkeep_type: AxisKeepType = AxisKeepType.CHISEL_VEC  # keep encoding type
 
 
 # ==============================================================================
@@ -120,11 +115,9 @@ class AxisDriver(ReadyValidDriverBase):
     def get_num_words(self, pkt: Packet) -> int:
         return math.ceil(pkt.pkt_size / self.width)
 
-    def drive_last(self, last_word: bool) -> None:
+    def drive_interface(self, pkt: Packet, last_word: bool, word_num: int) -> None:
         if self.axis_if.tlast is not None:
             self.axis_if.tlast.value = 1 if last_word else 0
-
-    def drive_data(self, pkt: Packet, last_word: bool, word_num: int) -> None:
         self.drive_tuser(pkt, last_word)
         self.drive_tkeep(pkt, last_word)
         self.drive_tdata(pkt, last_word, word_num)
