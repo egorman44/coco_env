@@ -27,32 +27,6 @@ class AxisKeepType(Enum):
     FFS = auto()
 
 
-@dataclass
-class AxisConfig:
-    """Configuration for AxisDriver and AxisMonitor.
-
-    Embeds ReadyValidConfig for flow-control parameters and adds
-    AXIS-specific settings.
-    """
-    rv_config: ReadyValidConfig = field(default_factory=ReadyValidConfig)
-    # Legacy flat access — these delegate to rv_config
-    @property
-    def flow_ctrl_mode(self):
-        return self.rv_config.flow_ctrl_mode
-    @property
-    def tvalid_low_limit(self):
-        return self.rv_config.tvalid_low_limit
-    @property
-    def tvalid_high_limit(self):
-        return self.rv_config.tvalid_high_limit
-    @property
-    def backpressure_min_delay(self):
-        return self.rv_config.backpressure_min_delay
-    @property
-    def backpressure_max_delay(self):
-        return self.rv_config.backpressure_max_delay
-
-
 def reverse_bits(value: int, width: int) -> int:
     """
     Reverses the bits of an integer within a specified width.
@@ -96,13 +70,13 @@ class AxisDriver(ReadyValidDriverBase):
     Implements AXIS-specific tdata/tkeep/tuser/tlast driving.
     """
 
-    def __init__(self, name: str, axis_if: AxisIf, pkt0_word0: int = 1, config: AxisConfig = AxisConfig()):
+    def __init__(self, name: str, axis_if: AxisIf, pkt0_word0: int = 1, config: ReadyValidConfig = ReadyValidConfig()):
         super().__init__(
             name=name,
             clk=axis_if.aclk,
             valid=axis_if.tvalid,
             ready=axis_if.tready,
-            config=config.rv_config,
+            config=config,
         )
         self.axis_if = axis_if
         self.width = axis_if.width
@@ -320,12 +294,12 @@ class AxisResponder(ReadyValidResponderBase):
     AXI Stream Slave Responder (handles TREADY).
     """
 
-    def __init__(self, name: str, axis_if: AxisIf, config: AxisConfig = AxisConfig()):
+    def __init__(self, name: str, axis_if: AxisIf, config: ReadyValidConfig = ReadyValidConfig()):
         super().__init__(
             name=name,
             clk=axis_if.aclk,
             ready=axis_if.tready,
-            config=config.rv_config,
+            config=config,
         )
         self.axis_if = axis_if
 
