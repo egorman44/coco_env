@@ -1,8 +1,5 @@
 import cocotb
 from cocotb.triggers import RisingEdge
-from cocotb.handle import SimHandleBase, NonHierarchyObject
-from cocotb.binary import BinaryValue
-from cocotb.utils import get_sim_time
 import random
 import math
 import logging

@@ -32,7 +32,7 @@ class FlowControlMode(Enum):
 class ReadyValidConfig:
     """Configuration for ready-valid driver and responder."""
     flow_ctrl_mode: FlowControlMode = FlowControlMode.ALWAYS_ON
-    tvalid_low_limit: int = 0
+    tvalid_low_limit: int = 3
     tvalid_high_limit: int = 1
     backpressure_min_delay: int = 1
     backpressure_max_delay: int = 5
