@@ -29,11 +29,16 @@ class FlowControlMode(Enum):
 
 
 @dataclass
-class ReadyValidConfig:
-    """Configuration for ready-valid driver and responder."""
+class DriverConfig:
+    """Configuration for ready-valid driver."""
     flow_ctrl_mode: FlowControlMode = FlowControlMode.ALWAYS_ON
     tvalid_low_limit: int = 3
     tvalid_high_limit: int = 1
+
+@dataclass
+class ResponderConfig:
+    """Configuration for ready-valid responder."""
+    flow_ctrl_mode: FlowControlMode = FlowControlMode.ALWAYS_ON
     backpressure_min_delay: int = 1
     backpressure_max_delay: int = 5
 
@@ -53,7 +58,7 @@ class ReadyValidDriverBase(ABC):
     def __init__(self, name: str, clk: SimHandleBase,
                  valid: Optional[SimHandleBase] = None,
                  ready: Optional[SimHandleBase] = None,
-                 config: ReadyValidConfig = ReadyValidConfig()):
+                 config: DriverConfig = DriverConfig()):
         self.name = name
         self.log = logging.getLogger(f"cocotb.{name}")
         self.clk = clk
@@ -74,6 +79,7 @@ class ReadyValidDriverBase(ABC):
         elif self.config.flow_ctrl_mode == FlowControlMode.ONE_VALID_ONE_NONVALID:
             return 1 if not tnx_completed else 0
 
+        
         elif self.config.flow_ctrl_mode == FlowControlMode.RANDOM:
             if tnx_completed:
                 if self.tvalid_delay > 0:
@@ -338,7 +344,7 @@ class ReadyValidResponderBase:
 
     def __init__(self, name: str, clk: SimHandleBase,
                  ready: Optional[SimHandleBase] = None,
-                 config: ReadyValidConfig = ReadyValidConfig()):
+                 config: ResponderConfig = ResponderConfig()):
         self.name = name
         self.log = logging.getLogger(f"cocotb.{name}")
         self.clk = clk

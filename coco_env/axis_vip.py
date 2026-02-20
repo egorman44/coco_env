@@ -8,7 +8,7 @@ from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Optional, List, Union, Any, Iterator, Type
 
 from .rv_base import (
-    Packet, FlowControlMode, ReadyValidConfig,
+    Packet, FlowControlMode, DriverConfig, ResponderConfig,
     ReadyValidDriverBase, ReadyValidMonitorBase, ReadyValidResponderBase
 )
 
@@ -67,7 +67,7 @@ class AxisDriver(ReadyValidDriverBase):
     Implements AXIS-specific tdata/tkeep/tuser/tlast driving.
     """
 
-    def __init__(self, name: str, axis_if: AxisIf, pkt0_word0: int = 1, config: ReadyValidConfig = ReadyValidConfig()):
+    def __init__(self, name: str, axis_if: AxisIf, pkt0_word0: int = 1, config: DriverConfig = DriverConfig()):
         super().__init__(
             name=name,
             clk=axis_if.aclk,
@@ -291,7 +291,7 @@ class AxisResponder(ReadyValidResponderBase):
     AXI Stream Slave Responder (handles TREADY).
     """
 
-    def __init__(self, name: str, axis_if: AxisIf, config: ReadyValidConfig = ReadyValidConfig()):
+    def __init__(self, name: str, axis_if: AxisIf, config: ResponderConfig = ResponderConfig()):
         super().__init__(
             name=name,
             clk=axis_if.aclk,
